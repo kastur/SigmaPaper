@@ -1014,15 +1014,15 @@ the#1\endcsname{\@thmcounter{#1}}\global
 %
 \def\bull{{\fontsize{7}{7}\selectfont\raise1.6pt\hbox{$\bullet$}}}
 \def\ps@headings{\let\@mkboth\@gobbletwo
-\def\@oddhead{\hbox{}\hfill \small\sf \rightmark\hskip 19pt{\bull}\hskip 17pt\ifStBan\@acmArticle:\fi\mypage}
-\def\@oddfoot{\hbox{}\hfill\tiny\@runningfoot}
-\def\@evenhead{\small\sf\ifStBan\@acmArticle:\fi\mypage \hskip 17pt{\bull}\hskip 19pt\leftmark\hfill \hbox{}}
-\def\@evenfoot{\tiny\@runningfoot\hfill\hbox{}}
+%\def\@oddhead{\hbox{}\hfill \small\sf \rightmark\hskip 19pt{\bull}\hskip 17pt\ifStBan\@acmArticle:\fi\mypage}
+%\def\@oddfoot{\hbox{}\hfill\tiny\@runningfoot}
+%\def\@evenhead{\small\sf\ifStBan\@acmArticle:\fi\mypage \hskip 17pt{\bull}\hskip 19pt\leftmark\hfill \hbox{}}
+%\def\@evenfoot{\tiny\@runningfoot\hfill\hbox{}}
 \def\sectionmark##1{}\def\subsectionmark##1{}}
 \def\@runningfoot{}
 \def\runningfoot{\def\@runningfoot{\@journalName, Vol.\ \@acmVolume, No.\ \@acmNumber, Article~\@acmArticle, Publication date: \monthWord{\@acmMonth}\ \@acmYear.}}
 \def\@firstfoot{}
-\def\firstfoot{\def\@firstfoot{\@journalName, Vol.\ \@acmVolume, No.\ \@acmNumber, Article~\@acmArticle, Publication date: \monthWord{\@acmMonth}\ \@acmYear.}}%, Pages \thepage--\@endpage
+\def\firstfoot{}%, Pages \thepage--\@endpage
 %
 \def\@marrayclassiv{\@addtopreamble{$\displaystyle \@nextchar$}}
 \def\@marrayclassz{\ifcase \@lastchclass \@acolampacol \or \@ampacol \or
@@ -1175,8 +1175,8 @@ the#1\endcsname{\@thmcounter{#1}}\global
 \def\@xstartdef#1[#2]{\begin{italic@#1}[{\em #2}]\rm}
 \def\@ystartdef#1{\begin{italic@#1}\rm}
 %
-\def\@oddfoot{\hbox{}\hfill\scriptsize\@runningfoot}
-\def\@evenfoot{\scriptsize\@runningfoot\hfill\hbox{}}
+%\def\@oddfoot{\hbox{}\hfill\scriptsize\@runningfoot}
+% \def\@evenfoot{\scriptsize\@runningfoot\hfill\hbox{}}
 %
 \def\firstfootsize{\@setsize\firstfootsize{7pt}\vipt\@vipt}
 \def\ps@titlepage{\let\@mkboth\@gobbletwo
@@ -1318,14 +1318,7 @@ permissions@acm.org.\fi\par
 \def\normtab{\hbox{\vrule width43.25pt depth0pt height72pt\hspace*{-46pt}\artnum}}
 \def\closetab{\hbox{\vrule width43.25pt depth0pt height81pt\hspace*{-46pt}\raise.125in\vbox{\artnum}}}
 %
-\newcommand\tab{\ifcase\@articleSeq\or
-  \vbox{\vskip-.125in\opentab}\or \vbox{\vskip6pc\normtab}\or \vbox{\vskip12pc\normtab}\or \vbox{\vskip18pc\normtab}\or \vbox{\vskip24pc\normtab}\or \vbox{\vskip30pc\normtab}\or
-  \vbox{\vskip36pc\normtab}\or \vbox{\vskip42pc\normtab}\or \vbox{\vskip48pc\normtab}\or \vbox{\vskip54pc\normtab}\or \vbox{\vskip60.2pc\closetab}\or
-  \vbox{\vskip-.125in\opentab}\or \vbox{\vskip6pc\normtab}\or \vbox{\vskip12pc\normtab}\or \vbox{\vskip18pc\normtab}\or \vbox{\vskip24pc\normtab}\or \vbox{\vskip30pc\normtab}\or
-  \vbox{\vskip36pc\normtab}\or \vbox{\vskip42pc\normtab}\or \vbox{\vskip48pc\normtab}\or \vbox{\vskip54pc\normtab}\or \vbox{\vskip60.2pc\closetab}\or
-  \vbox{\vskip-.125in\opentab}\or \vbox{\vskip6pc\normtab}\or \vbox{\vskip12pc\normtab}\or \vbox{\vskip18pc\normtab}\or \vbox{\vskip24pc\normtab}\or \vbox{\vskip30pc\normtab}\or
-  \vbox{\vskip36pc\normtab}\or \vbox{\vskip42pc\normtab}\or \vbox{\vskip48pc\normtab}\or \vbox{\vskip54pc\normtab}\or \vbox{\vskip60.2pc\closetab}\fi%
-}
+\newcommand\tab{}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  OutPut Routine  %%%%%%%%%%%%%%%%%%%%%%%%%
 \def\@outputpage{%
