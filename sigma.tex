@@ -21,6 +21,10 @@
 \usepackage{listings}
 \usepackage{caption}
 
+
+\usepackage[T1]{fontenc}
+\usepackage{inconsolata}
+
 \definecolor{offwhite}{gray}{0.96}
 
 
@@ -49,6 +53,7 @@
 }{\endminipage}
 
 \captionsetup[lstlisting]{format=alsoempty}
+\captionsetup[figure]{format=alsoempty}
 
 %\renewcommand{\artnum}{}
 %\renewcommand{\firstfoot}{}
@@ -532,8 +537,8 @@ Useful metrics to measure include CPU load and memory usage. The CPU usage of Si
 \begin{figure}[h]
 \centering
 \includegraphics[width=\textwidth]{plots/location_sharing_reference_counting.pdf}
-\label{fig:reference_counting}
 \caption{Management (reference counting) of Binder between Emulator and Nexus 4 device in the process of Emulator receiving location updates from Device via PendingIntent callbacks}
+\label{fig:reference_counting}
 \end{figure}
 
 \subsubsection{Remote Sensor Events}
@@ -554,11 +559,12 @@ Because there is jitter in received sensor events, it is necessary to depend on 
 \end{figure}
 
 \section{Picture Sharing: An Example Distributed Applications purely in Android Binder}
-\label{sec:ExampleApplication}
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\textwidth]{drawings/PictureChatExample.pdf}
+\caption{Screenshots from simple picture sharing service}
+\label{sec:ExampleApplication}
 \end{figure}
 
 \begin{snippet}
