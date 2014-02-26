@@ -35,6 +35,9 @@
 %% starts with \relax, this will work
 \DeclareCaptionFormat{alsoempty}{%
   #1\if\relax\expandafter\noexpand\lst@caption\else#2#3\fi}
+
+\DeclareCaptionFormat{figalsoempty}{%
+  #1\if\relax\expandafter\noexpand\@caption\else#2#3\fi}
 \makeatother
 
 \lstset{
@@ -53,7 +56,7 @@
 }{\endminipage}
 
 \captionsetup[lstlisting]{format=alsoempty}
-\captionsetup[figure]{format=alsoempty}
+%\captionsetup[figure]{format=figalsoempty}
 
 %\renewcommand{\artnum}{}
 %\renewcommand{\firstfoot}{}
@@ -61,8 +64,8 @@
 % Title portion
 \title{Sigma: Android Binder Services over Network}
 \author{KASTURI RANGAN RAGHAVAN~~~
-%Advisor: MANI SRIVASTAVA\\
-%MS Comprehensive Project~~~
+Supervisor: MANI SRIVASTAVA\\
+MS Comprehensive Project~~~
 University of California, Los Angeles
 }
 %\terms{}
@@ -73,6 +76,14 @@ University of California, Los Angeles
 \tableofcontents
 
 \clearpage
+
+\section{Abstract}
+The Android mobile platform is built on a service-oriented architecture. Yet there are no idiomatic mechanisms to provide local services to remote Android clients. Android services are provided with an underlying message-based interprocess-communication (IPC) protocol--known as Binder--implemented as a linux kernel module. Binder messages transit through the kernel module and often contain local descriptors--pointers to kernel-managed Binder objects or file descriptors.
+
+This paper introduces Sigma, an experimental protocol supporting the tunneling of Binder messages over network connections. Sigma inspects and rewrites Binder messages containing descriptors, providing operations on those descriptors over the network. Thus, Android services relying on Binder are supported over the network, even enabling access to system services.
+
+We implement Sigma over HTTP- and XMPP-based network connections, evaluating the ability to access services such as sensor and location updates between Android devices. Treating every Sigma-enabled device as a peer in a network, Sigma transforms the Android mobile platform into a platform for distributed applications. We design a simple picture sharing service purely with Binder, made into a distributed application with the help of Sigma to provide the service over the network.
+
 \section{Introduction and Problem Definition}
 
 The Android mobile platform is built on a service-oriented architecture. Yet there are no idiomatic mechanisms to provide local services to remote Android clients. This paper introduces Sigma, an experimental platform that builds upon Android's service-oriented runtime to allow tunneling of Android services over network connections. Sigma makes communication between devices a responsibility of the mobile platform. All binder services are supported over the network, even enabling access to system services. Treating every Sigma-enabled device as a peer in a network, Sigma transforms the Android mobile platform into a platform for distributed applications.
@@ -129,7 +140,7 @@ binder_call(publish_txn, msg, reply, (void*)0, SVC_MGR_ADD_SERVICE);
 binder_loop(binder_service, (void*)service_handler);
 \end{snippet}
 
-Note that msg and reply are binder\_io data structures that contain the data to be passed into or returned, respectively, from binder\_call. Implementing RPC services through binder\_call is a matter of convention. In the above example to publish a service, the binder\_io msg contains the following elements, with the data encoded into a flat byte array. The 2 strings and 1 object are read in the same order by ServiceManager's handler. Thus implementing the RPC.
+Note that msg and reply are binder\_io data structures (see Appendix~\ref{app:binder_io}) that contain the data to be passed into or returned, respectively, from binder\_call. Implementing RPC services through binder\_call is a matter of convention. In the above example to publish a service, the binder\_io msg contains the following elements, with the data encoded into a flat byte array. The 2 strings and 1 object are read in the same order by ServiceManager's handler. Thus implementing the RPC.
 
 \begin{snippet}[caption=contents of msg passed into binder\_call]
 msg = {
@@ -350,12 +361,12 @@ Sigma Engine needs a networking stack to work with. It makes most sense to imple
 \textbf{Caveat} As Sigma is implemented today, it requires some underlying modifications to the Android Runtime, as such it is not compatible with regular Android devices. See Appendix~\ref{sec:AndroidRuntimeModifications}
 
 \subsection{Design of the Sigma Message-based Protocol}
-Sigma Engine follows a protocol for retrieving remote BinderProxy objects as URIs and then make binder transactions targeted at the URI. Assuming we have established a data channel between two devices, the first decision is to chose a structured format for communication over the network data channel. There is a lightweight implementation of Google's protobuf format for encoding structured data called Wire~\cite{Wire,IntroWire}. It is a open source library created specifically for Android by the mobile app company Square. The protocol is an exchange of Wire messages in transations. Each transaction is a SRequest message followed by a SResponse message. Figure~\ref{fig:GenericSigmaTransaction} contains the rought protobuf format implementing the generic transaction.
+Sigma Engine follows a protocol for retrieving remote BinderProxy objects as URIs and then make binder transactions targeted at the URI. Assuming we have established a data channel between two devices, the first decision is to chose a structured format for communication over the network data channel. There is a lightweight implementation of Google's protobuf format for encoding structured data called Wire~\cite{Wire,IntroWire}. It is a open source library created specifically for Android by the mobile app company Square. The protocol is an exchange of Wire messages in transactions. Each transaction is a SRequest message followed by a SResponse message. Figure~\ref{fig:GenericSigmaTransaction} contains the rough protobuf format implementing the generic transaction.
 
 \begin{figure}[h!]
 \centering
 \includegraphics[width=0.8\textwidth]{drawings/WireTransaction.pdf}
-\caption{Generic Sigma Transaction}
+\caption{Wire messages for a generic Sigma transaction}
 \label{fig:GenericSigmaTransaction}
 \end{figure}
 
@@ -364,7 +375,7 @@ The URI is a Wire message (see Figure~\ref{fig:WireURI}) that contains all the n
 \begin{figure}[h!]
 \centering
 \includegraphics[width=0.8\textwidth]{drawings/WireURI.pdf}
-\caption{Wire URI message}
+\caption{A Wire message for representing URI for remote Sigma engines, binder objects, and file descriptors}
 \label{fig:WireURI}
 \end{figure}
 
@@ -373,12 +384,12 @@ A remote service's Binder interface is obtained as a BinderProxy by the remote S
 \begin{figure}[h!]
 \centering
 \includegraphics[width=0.8\textwidth]{drawings/WireBinderTransaction.pdf}
-\caption{A Generic Sigma Binder Transaction}
+\caption{Wire messages for a generic Sigma binder transaction}
 \label{fig:GenericSigmaBinderTransaction}
 \end{figure}
 
-\subsection{Tunneling Binder Descriptors}
-As we know, binder objects can be contained in the Parcel passed into a binder transaction. These are invariable BinderProxy objects as the actual service object being passed in is owned by a remote process and not by Sigma. In such a situation, the Sigma Engine manages the BinderProxy, assigning to it an unique ID. This ID is transformed into a BINDER URI (taking the local Sigma Engine's BASE URI, adding on the ID of the managed binder object, and adding the offset into the data array that the BinderProxy object is written into). In this way, Parcels containing binder objects are encoded as SParcel messages with containing an array of corresponding BINDER URIs in the objects field.
+\subsection{Tunneling Binder Object Descriptors}
+As we have seen before, binder objects can be contained in the Parcel passed into a binder transaction. These are invariable BinderProxy objects as the actual service object being passed in is owned by a remote process and not by Sigma. In such a situation, the Sigma Engine manages the BinderProxy, assigning to it an unique ID. This ID is transformed into a BINDER URI (taking the local Sigma Engine's BASE URI, adding on the ID of the managed binder object, and adding the offset into the data array that the BinderProxy object is written into). In this way, Parcels containing binder objects are encoded as SParcel messages with containing an array of corresponding BINDER URIs in the objects field.
 
 Conversely, a Sigma Engine can receive remote binder transaction requests with SParcels that have a non-empty array of BINDER URI objects. In this situation, a local Binder is created and managed by Sigma Engine. The local Binder is a specially implemented to forward binder transactions made on it as a SRequest message over the network to the BINDER URI target that it was initialized with.
 
@@ -386,6 +397,7 @@ Conversely, a Sigma Engine can receive remote binder transaction requests with S
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{drawings/encodeObjects.pdf}
+\caption{Pseudo-code algorithm for encoding binder objects as URI, and creating a binder object on the other end targeted at that URI.}
 \end{figure}
 
 \subsection{Reference counting}
@@ -405,12 +417,15 @@ At the the remote end, receiving SParcels with UNIX\_DOMAIN\_SOCKET URIs creates
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{drawings/encodeFds.pdf}
+\caption{Pseudo-code algorithm for encoding (UNIX\_DOMAIN\_SOCKET) file descriptors as URI, and creating a new file descriptor at the other end targeted at that URI.}
 \end{figure}
 
 Creating and exchanging the URI for the file descriptor is only the first step. IO Operations need to be forwarded. A Forwarder object is initialized to poll the file descriptor and on receiving data, forwards the data over the network addressed to the appropriate UNIX\_DOMAIN\_SOCKET URI. On the other side, socket data received at a UNIX\_DOMAIN\_SOCKET URI is forwarded locally to the local managed file descriptor.
+
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{drawings/forwardFds.pdf}
+\caption{Pseudo-code for a file descriptor event forwarding mechanism. Polls and forwards messages received on one end towards the URI. Then messages are forwarded to the local file descriptor on the other end.}
 \end{figure}
 
 \subsection{Choice and Implementation of a Networking Stack}
@@ -471,7 +486,7 @@ To get a sense of the interaction between the processes on the two devices, figu
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{drawings/SigmaEngineInteraction.pdf}
-\caption{Interaction between Sigma Engines in obtaining a reference to a remote service.}
+\caption{Interaction between two Sigma Engine instances for a local client to obtain an IBinder reference to a remote service.}
 \label{fig:SigmaInteraction}
 \end{figure}
 
@@ -752,7 +767,21 @@ msg -     The incoming message from binder_call.
 reply -   The return value should be written out here, if any
 \end{snippet}
 
-\subsection{The flat\_binder\_object struct}
+\subsection{The binder\_io struct}
+\label{app:binder_io}
+The binder\_io struct holds the data for binder transactions as byte arrays, and it used by the BKM. Binder objects and file descriptors are flattened as flat\_binder\_object data structures and written into the data array, with the offset for each object written stored in the offs array. Remote binder objects are local descriptors that refer to records managed within the BKM.
+
+The Java and C++ binder transactions operate on Parcel objects which encapsulate a binder\_io data structure.
+
+\begin{snippet}
+struct binder_io {
+  char *data;            /* start of data buffer */
+  uint32_t *offs;        /* array of offsets */
+  uint32_t data_avail;   /* bytes available in data buffer */
+  uint32_t offs_avail;   /* entries available in offsets array */
+};
+\end{snippet}
+
 This struct holds either a local pointer to a binder service or a kernel-module provided handle. This same struct is used for storing file descriptors as well.
 
 \begin{snippet}
@@ -763,20 +792,6 @@ struct flat_binder_object {
     signed long handle;  /* remote object */
   };
   void *cookie;          /* extra data */
-};
-\end{snippet}
-
-\subsection{The binder\_io struct}
-This struct holds the data for binder transactions as byte arrays. Objects and file descriptors are flattened as flat\_binder\_object structs and written into the data array, with the offset for each object written stored in the offs array.
-
-The Java and C++ binder transactions operate on Parcel objects which encapsulate a binder\_io data structure.
-
-\begin{snippet}
-struct binder_io {
-  char *data;            /* start of data buffer */
-  uint32_t *offs;        /* array of offsets */
-  uint32_t data_avail;   /* bytes available in data buffer */
-  uint32_t offs_avail;   /* entries available in offsets array */
 };
 \end{snippet}
 
