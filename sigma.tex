@@ -1,5 +1,7 @@
 \documentclass[prodmode]{acmlarge}
 
+\raggedbottom
+
 \usepackage[numbers, square,sort&compress]{natbib}
 \bibliographystyle{abbrvnat}
 \renewcommand{\bibnumfmt}[1]{#1}
@@ -348,7 +350,7 @@ A complication, particularly when dealing with system services, is that many of 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{drawings/sigma_proxy_pattern.pdf}
-\caption{Sigma as a Chained version of the Proxy Pattern}
+\caption{Sigma as a chained Proxy Pattern}
 \label{fig:SigmaChainProxy}
 \end{figure}
 The design of Sigma in a nutshell is essentially to follow the Proxy Pattern of binder services one hop out--with a ``Proxy'' Binder on a client device forwarding all operations to a remotely managed IBinder on another device, see figure~\ref{fig:SigmaChainProxy}. We are mainly interested in supporting .transact(), and that entails the communication of Parcel objects from one device to another.
@@ -357,7 +359,7 @@ The design of Sigma in a nutshell is essentially to follow the Proxy Pattern of 
 
 Consider a network consisting of two Android devices, and that there is a pre-established data channel between them. Each device runs a Sigma Engine instance which has server-like and client-like functions. Its function viewed as a server is to associate a URI to local IBinder object given to it--usually a BinderProxy object referring to an active Binder object running on another process on the same device. Subsequently Sigma Engine should listen on the network channel for requests made to that URI, and perform the requested operation directly on the corresponding managed IBinder object. Its function as a client is to communicate over the network channel with a remote Sigma Engine to retrieve the URI of a remotely managed IBinder object. The local Sigma Engine then creates a special Binder object--a SigmaProxy which is initialized with the URI of the remotely managed IBinder. A handle to SigmaProxy can be passed to other processes on the local device, encapsulated as a BinderProxy object. Local clients can invoke .transact() on the SigmaProxy via binder. This operation runs on the Sigma Engine (as it created the SigmaProxy) and it functions to forward the binder transaction (its arguments) to the remote Sigma Engine--invoking its server-like functions--to handle the binder transaction, and eventually return a reply.
 
-\subsection{Tunneling Binder Object Descriptors}
+\subsection{Dealing with Binder Objects in a Parcel}
 The difficulty arises when dealing with the contents of the Parcel arguments in a call to .transact(). Since a Parcel can contain handles to local binder objects or file descriptors, we cannot simply marshall the Parcel's byte-array and expect the the unmarshalled Parcel to be valid on the remote side.
 
 When .transact() is invoked on a SigmaProxy, the ``msg'' Parcel object needs to be communicated over the network channel. However, the Parcel may contain local descriptors such as handles to binder objects. With some modifications to the Android Runtime (see Appendix~\ref{sec:AndroidRuntimeModifications}), we are able to locate the offsets into the Parcel's byte-array where these handles are written, and are able to read in each handle as a BinderProxy object. We now utilize the server-like function of the local Sigma Engine by asking it to manage each BinderProxy object--assigning it an URI. Thus, each Parcel containing handles to local binder objects are rewritten into messages containing the corresponding URIs. Each URI is managed by the local Sigma Engine. See the encode side of figure~\ref{fig:encodeParcel}.
@@ -379,7 +381,7 @@ Another detail is reference-counting. A Binder object remains in memory as long 
 
 In the original Binder implementation, there is no additional Binder object created. As remote processes simply hold BinderProxy objects to referent Binder objects from another process. So it follows, we have to specifically handle clean-up in the implementation of Sigma. The way we manage it is to hold only a weak reference to BinderProxy objects managed by the Sigma Engine. This way, BinderProxy objects are finalized when the referent Binder dies. And when that happens, a remote Sigma Engine can send a message over the network channel to invalidate all SigmaProxy objects pointed to the finalized BinderProxy. See the evaluation in section~\ref{sec:location_sharing} that tracks the allocation and de-allocation of Binder objects to see an example of Sigma's reference-counting mechanism at work.
 
-\subsection{Tunneling File Descriptors over Network}
+\subsection{Dealing with File Descriptors in a Parcel}
 File descriptors in Parcels are handled analogously to binder objects. However, in Unix-like systems, file descriptors can refer to any Unix file type named in a file system. As well as regular files, this includes directories, block and character devices (also called ``special files''), Unix domain sockets, and named pipes. File descriptors can also refer to other objects that do not normally exist in the file system, such as anonymous pipes and network sockets~\cite{UnixDomainSocket}.
 
 Although it is theoretically possible to handle each type file descriptor (the way Netcat~\cite{NetCatProxy} manages to be a proxy), each type has to be treated separately since each type has a specific set of supported IO operations. We only want to demonstrate as a proof-of-concept that we can handle file descriptors by focusing on a single type: the Unix domain socket. This type is interesting mainly because they are used by SensorManager to communicate sensor events, and used elsewhere in GUI-related Android services. Such file descriptors are created via socketpair() with the protocol SOCK\_SEQPACKET, and provide sequenced, reliable, bidirectional, connection-mode transmission paths for records. A record can be sent using one or more output operations and received using one or more input operations, but a single operation never transfers part of more than one record~\cite{SocketManPage}. Fortunately, we need to support only a small set of operations: send() and recv(). Also the remote end needs to know when the socket is no longer valid or is otherwise closed so that resources can be cleaned up.
@@ -437,17 +439,17 @@ The TXN\_REQUEST SRequest message and the corresponding TXN\_RESPONSE SResponse 
 \subsection{Choice of Network Data Channel}
 Sigma is first a protocol and then an implementation. As a protocol, it is agnostic to the underlying network connection, assuming only that a reliable underlying data channel is available for atomically sending and receiving messages. We can evaluate and test the design of Sigma with a single Android device, simply using an IPC mechanism. To evaluate Sigma between Android devices, we have a gamut of networking technologies to choose from. We choose HTTP- and XMPP- based channel to test evaluate the design and measure performance.
 
-\subsubsection{Sigma Engine over BINDER}
+\subsubsection{BINDER}
 A basic version of Sigma is implemented locally using Android Binder itself as a data channel. This is useful for testing as we can run two instances of Sigma engine as separate processes on the same device. A transaction is simply a binder RPC, where the Sigma Engine has a method with the signature:
 
 \begin{snippet}
 SResponse handleRequest(SRequest request);
 \end{snippet}
 
-\subsubsection{Sigma Engine over HTTP}
+\subsubsection{HTTP}
 Each device brings up a HTTP server listening on a pre-determined port. Clients communicate to another device by through a HTTP POST request to another device's HTTP server. A client needs to know the hostname and port of the server, and the server must be accessible over the network.
 
-\subsubsection{Sigma Engine over XMPP}
+\subsubsection{XMPP}
 Each device logs-in with distinct alias to a mutually accessible XMPP server. XMPP is a popular protocol for real-time collaboration--messaging and chat. Transactions initiate a chat session with another active alias. Each chat session, identified by a unique thread ID, is used for one transaction and then disposed. Subsequent (or parallel) transactions occur on distinct sessions.
 
 \subsubsection{Encoding Sigma (Wire) Messages, Examples}
@@ -687,6 +689,7 @@ It makes more sense for an app to be given permission to use a set of local serv
 \label{sec:NextSteps}
 In the long-term, it would be interesting to tightly couple two devices merging their Android Runtime state. Imagine that the local and remote PackageManager merge and present each device's components in their own namespace--one local, the other remote. Permissions to access services would have to be specified with the idea of a local and remote namespace as well. Consider also that the ActivityManager is merged. Sigma Engine would run within the runtime as part of the ActivityManager rather than as a separate package. With such tight coupling established, local components are able to connect to remote components directly through the ActivityManager's bindService(), the only difference is that apps specify a "remote" or "local" namespace to connect with. Tight coupling also solves some issues with notifications of binder service death. Life-cycle events of Android components on one device would automatically notify the other device, etc.
 
+\pagebreak[4]
 \section{Appendix}
 
 \subsection{Necessary Modifications to the Android Runtime}
@@ -725,7 +728,7 @@ The source code to the modified Android Runtime is available online, see Appendi
 \subsection{Links to source code, available online}
 \label{app:SourceCode}
 
-\subsubsection{Sigma Engine and patched dependencies}
+\subsubsection{Sigma Engine and example applications}
 The main Sigma Engine that can be compiled into an Android package (or APK) can be found online. This includes all the examples from the Performance and Evaluation sections, including the Picture Sharing service.t
 
 \noindent~The root Sigma project with dependencies: \verb|https://github.com/kastur/SigmaRoot|.
@@ -735,9 +738,10 @@ The main Sigma Engine that can be compiled into an Android package (or APK) can 
 \noindent~The XMPP library is patched slightly, and is online: \verb|https://github.com/kastur/ASmack|
 
 The code has been tested on a modified Android Runtime with a Android base version 4.2.2\_r1 on the Android Emulator and Nexus 4 device.
-Modifications to the Android Runtime. Of course, the Sigma Android package will not function on a regular Android device. We have modified the Android 4.2.2\_r1 version source tree to support some features.
 
-The modified runtime can be compiled and flashed on a real device or run on the emulator by following the directions at \verb|https://source.android.com/|. The following patches have to be applied to 2 modified sub-projects. The modified source tree for 2 sub-projects is available online:
+\subsubsection{Modifications to the Android Runtime}
+Of course, the Sigma Android package will not function on a regular Android device. We have modified the Android 4.2.2\_r1 version source tree to support some features. The modified runtime can be compiled and flashed on a real device or run on the emulator by following the directions at \verb|https://source.android.com/|. The following patches have to be applied to 2 modified sub-projects. The modified source tree for 2 sub-projects is available online:
+
 \begin{Verbatim}
 https://github.com/6b72/platform_frameworks_base/tree/sigma
 https://github.com/6b72/platform_frameworks_native/tree/sigma
@@ -752,6 +756,7 @@ https://github.com/6b72/platform_frameworks_native/compare/
 529cb9ed9c5d62d5b270cdd650380ae116382143...994ae7fa16165b3e85553d154111df0a2f5a5af3
 \end{Verbatim}
 
+\pagebreak[4]
 \subsection{The Binder Kernel Module's binder\_call and handler function}
 \label{app:binder_call}
 
@@ -840,14 +845,16 @@ Note that what is not captured by the interface definition alone is that arbitra
 
 getCallingUid() and getCallingPid() are features of the Binder Kernel Module to get information about the caller process.
 
-
+\pagebreak[4]
 \subsection{Examples of Sigma (Wire) messages}
 \label{app:WireExchange}
 The following set of figures show in detail the Wire messages exchanged between two Sigma Engines (implemented via a LOCAL protocol, with engines running on same device and communicating to each other via native binder). The messages correspond to the example from the beginning of "Design of Sigma" section, where a remote Sigma Engine reference is first retrieved via RPC to a local Sigma Engine, and then a reference to remote service is obtained.
+
 \begin{figure}[h!]
 \centering
 \includegraphics[width=\textwidth]{drawings/WireExchange1.pdf}
 \end{figure}
+
 \begin{figure}[h!]
 \centering
 \includegraphics[width=\textwidth]{drawings/WireExchange2.pdf}
@@ -855,6 +862,7 @@ The following set of figures show in detail the Wire messages exchanged between 
 
 Here, since we are operating under the LOCAL protocol, all transactions proxy binder objects are transit through the local Sigma Engine and then to the remote Sigma Engine (which also runs on the same device as a different process), and then from there to the native binder service. Naturally this the transit from local to remote Sigma Engine will take over the network (through HTTP or XMPP) for those implementations.
 
+\pagebreak[4]
 \subsection{Wire messages exchanged during a recursive binder RPC}
 \label{app:WireExchangeRecursive}
 An exchange of Wire messages detailing a recursive binder that take place between two Sigma Engine instances from the example of the PingPong service.
@@ -862,7 +870,7 @@ An exchange of Wire messages detailing a recursive binder that take place betwee
 \centering
 \includegraphics[width=\textwidth]{drawings/WireExchangeRecursive.pdf}
 \end{figure}
-
+\pagebreak[4]
 
 \bibliography{sigma}
 
