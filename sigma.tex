@@ -337,7 +337,7 @@ Certain services don't make too much sense to expose. For instance, the AlarmMan
 Services that are coupled to the local Android Runtime are difficult to directly expose over the network. This is because the operation of such services depends on records that are local to the device. For instance, ActivityManager is a crucial system service that is in charge of managing all live components running on the Android device. All components attach to the ActvityManager when they run, and through the ActivityManager provide useful operations such as bindService(). However, it is not so straightforward to invoke bindService() on a remote handle to ActivityManager (running on a different device). Such a RPC refers to records about the calling process that only the ActivityManager on the client device knows about.
 
 \subsection{A caveat with Android Permissions}
-A complication, particularly when dealing with system services, is that many of them require permission to access. Apps declare permission to use a service, and the PackageManager grants such permission at install time. It is not trivial to extend the Android permissions system to allow access system services on remote devices. As such Sigma as it is implemented disregards Android permissions, allowing apps to access to all services running on a remote device. A thorough treatment of the permissions framework and its support by Sigma is a left for future work, with discussion at the end of the paper in Sections~\ref{sec:DealingWithAndroidPermissions} and ~\ref{sec:NextSteps}.
+A complication, particularly when dealing with system services, is that many of them require permission to access. Apps declare permission to use a service, and the PackageManager grants such permission at install time. It is not trivial to extend the Android permissions when dealing with clients from remote devices. As such Sigma as it is implemented disregards Android permissions, allowing apps to access to all services running on a remote device. A thorough treatment of the permissions framework and its support by Sigma is a left for future work, with discussion at the end of the paper in Sections~\ref{sec:DealingWithAndroidPermissions} and ~\ref{sec:NextSteps}.
 
 \section{Sigma: Design and Implementation}
 \label{sec:Sigma}
@@ -347,18 +347,18 @@ A complication, particularly when dealing with system services, is that many of 
 \caption{Sigma as a chained Proxy Pattern}
 \label{fig:SigmaChainProxy}
 \end{figure}
-The design of Sigma in a nutshell is essentially to follow the Proxy Pattern of binder services one hop out--with a ``Proxy'' Binder on a client device forwarding all operations to a remotely managed IBinder object on another device, see figure~\ref{fig:SigmaChainProxy}. We are mainly interested in supporting .transact(), and that entails the communication of Parcel objects from one device to another.
+The design of Sigma in a nutshell is to follow the Proxy Pattern of binder services one hop out--with a ``Proxy'' Binder on a client device forwarding all operations over a network connection to a remotely managed IBinder object on another device, see figure~\ref{fig:SigmaChainProxy}. We are mainly interested in supporting IBinder.transact(), and that entails the communication of Parcel objects from one device to another.
 
 %\textbf{Caveat} As Sigma is implemented today, it requires some underlying modifications to the Android Runtime, as such it is not compatible with regular Android devices. See Appendix~\ref{sec:AndroidRuntimeModifications}
 
-Consider a network consisting of two Android devices, and that there is a pre-established data channel between them. Each device runs a Sigma Engine instance which has server-like and client-like functions. Its function viewed as a server is to associate a URI to a local IBinder object given to it--usually a BinderProxy object referring to an active Binder object running on another process on the same device. Subsequently Sigma Engine should listen on the network channel for requests made to that URI, and perform the requested operation directly on the corresponding managed IBinder object. Its function as a client is to communicate over the network channel with a remote Sigma Engine to retrieve the URI of a remotely managed IBinder object. The local Sigma Engine then creates a special Binder object--a SigmaProxy which is initialized with the URI of the remotely managed IBinder. A handle to SigmaProxy can be passed to other processes on the local device, as a BinderProxy object. Local clients can invoke .transact() on the SigmaProxy via binder. This operation runs on the Sigma Engine (as it created the SigmaProxy) and it functions to forward the binder transaction (its arguments) to the remote Sigma Engine--invoking its server-like functions--to handle the binder transaction, and eventually return a reply.
+Consider a network consisting of two Android devices, and that there is a pre-established data channel between them. Each device runs a Sigma Engine instance which has server-like and client-like functions. Its function viewed as a server is to associate a URI to a local IBinder object given to it--usually a BinderProxy object referring to an active Binder object from another process on the same device. Subsequently Sigma Engine should listen on the network channel for requests made to that URI, and perform the requested operation directly on the corresponding managed IBinder object. Its function as a client is to communicate over the network channel with a remote Sigma Engine to retrieve the URI of a remotely managed IBinder object. The local Sigma Engine then creates a special Binder object--a SigmaProxy which is initialized with the URI of the remotely managed IBinder. A handle to SigmaProxy can be passed to other processes on the local device, as a BinderProxy object. Local clients can invoke .transact() on the SigmaProxy via binder. This operation runs on the Sigma Engine (as it created the SigmaProxy) and it functions to forward the binder transaction (its arguments) to the remote Sigma Engine to handle the binder transaction, and eventually return a reply.
 
 \subsection{Dealing with Binder Objects in a Parcel}
 The difficulty arises when dealing with the contents of the Parcel arguments in a call to .transact(). Since a Parcel can contain handles to local binder objects or file descriptors, we cannot simply marshall the Parcel's byte-array and expect the unmarshalled Parcel to be valid on the remote side.
 
 When .transact() is invoked on a SigmaProxy, the ``msg'' Parcel object needs to be communicated over the network channel. However, the Parcel may contain local descriptors such as handles to binder objects. With some modifications to the Android Runtime (see Appendix~\ref{sec:AndroidRuntimeModifications}), we are able to locate the offsets into the Parcel's byte-array where these handles are written, and are able to read in each handle as a BinderProxy object. We now utilize the server-like functions of the Sigma Engine by asking it to manage each BinderProxy object--assigning it an URI. Thus, each Parcel containing handles to binder objects are rewritten into messages containing the corresponding URIs. Each URI is managed by the Sigma Engine. See the encode side of figure~\ref{fig:encodeParcel}.
 
-On the remote end, the Sigma Engine receives a binder transaction request targeted to a URI of an IBinder object that it manages. The request contains an encoded Parcel with an array of URIs (pointing to an IBinder managed by a Sigma Engine on another device). Utilizing the client-like functions of Sigma Engine, we create SigmaProxy Binder objects targeted at each URI. A Parcel object is created, writing handles to these SigmaProxy objects into the Parcel's byte-array (into the same offsets as in the original Parcel). See the decode side of figure~\ref{fig:encodeParcel}. The Sigma Engine then calls .transact() on the target IBinder with this newly created Parcel. The reverse procedure is used in returning the ``reply'' Parcel object back to the caller Sigma Engine.
+On the remote end, the Sigma Engine receives a binder transaction request targeted to a URI of an IBinder object that it manages. The request contains an encoded Parcel with an array of URIs (each pointing to an IBinder object managed by the Sigma Engine initiating the transaction). Utilizing the client-like functions of Sigma Engine, we create SigmaProxy Binder objects targeted at each URI. A Parcel object is created, writing handles to these SigmaProxy objects into the Parcel's byte-array (into the same offsets as in the original Parcel). See the decode side of figure~\ref{fig:encodeParcel}. The Sigma Engine then calls .transact() on the target IBinder with this newly created Parcel. The reverse procedure is used in returning the ``reply'' Parcel object back to the caller Sigma Engine.
 
 \begin{figure}[h]
 \centering
@@ -371,14 +371,14 @@ On the remote end, the Sigma Engine receives a binder transaction request target
 \label{sec:ReferenceCounting}
 Another detail is reference-counting. A Binder object remains in memory as long as there is at least one strong reference to it. So, a SigmaProxy object will remain in memory unless deleted by the Sigma Engine that created it. On the other hand, a strong reference to a BinderProxy object does not prevent the referent Binder object from being garbage collected. This routinely happens, and causes a ``DeadObject'' exception when invoking a RPC on a dead referent Binder.
 
-No additional Binder object is created during a local binder RPC since a process gets a BinderProxy object to referent Binder object in another process. It follows that since Sigma does use an extra Binder object (i.e. the SigmaProxy), we have to specifically handle clean-up. The way we manage it is to hold only a weak reference to BinderProxy objects managed by the Sigma Engine. This way, BinderProxy objects are finalized when the referent Binder dies. And when that happens, the Sigma Engine can send a message over the network channel to invalidate all remote SigmaProxy objects pointed to the URI of the finalized BinderProxy object. See the evaluation in section~\ref{sec:location_sharing} that tracks the allocation and de-allocation of Binder objects to see an example of Sigma's reference-counting mechanism at work.
+No additional Binder object is created during a local binder RPC since a client process performs operations directly on a BinderProxy object. During a remote binder RPC (involving Sigma), the client process performs operations on a BinderProxy whose referent Binder is a SigmaProxy--created specifically on the client device. Since Sigma creates and manages the life-cycle of a a new Binder object (i.e. the SigmaProxy), we have to specifically handle clean-up. The way we manage it is to hold only a weak reference to BinderProxy objects managed by the Sigma Engine on the remote side. This way, the remote BinderProxy objects are finalized when the referent Binder dies. And when that happens, the remote Sigma Engine can send a message over the network channel to invalidate all SigmaProxy objects pointed to the URI of the finalized remote IBinder. See the evaluation in section~\ref{sec:location_sharing} that tracks the allocation and de-allocation of Binder objects to see an example of Sigma's reference-counting mechanism at work.
 
 \subsection{Dealing with File Descriptors in a Parcel}
 File descriptors in Parcels are handled analogously to binder objects. However, in Unix-like systems, file descriptors can refer to any Unix file type named in a file system. As well as regular files, this includes directories, block and character devices (also called ``special files''), Unix domain sockets, and named pipes. File descriptors can also refer to other objects that do not normally exist in the file system, such as anonymous pipes and network sockets~\cite{UnixDomainSocket}.
 
 Although it is theoretically possible to handle each type of file descriptor (the way Netcat~\cite{NetCatProxy} manages to be a proxy), each type has to be treated separately since each type has a specific set of supported IO operations. We only want to demonstrate as a proof-of-concept that we can handle file descriptors by focusing on a single type: the Unix domain socket. This type is of interest mainly because it is used by SensorManager to communicate sensor events, and used elsewhere in GUI-related Android services. Such file descriptors are created via socketpair() with the protocol SOCK\_SEQPACKET, and provide sequenced, reliable, bidirectional, connection-mode transmission paths for records. A record can be sent using one or more output operations and received using one or more input operations, but a single operation never transfers part of more than one record~\cite{SocketManPage}. Fortunately, we need to support only a small set of operations: send() and recv(). Also the remote end needs to know when the socket is no longer valid or is otherwise closed so that resources can be cleaned up.
 
-Unlike a binder object where requests are unidirectional (from SigmaProxy to remotely managed IBinder), the socket is bidirectional. When a SigmaProxy handles a transaction with a unix domain socket in the Parcel, it is managed in two ways. First, the server-like part of Sigma Engine listens on the network channel for received data (which is forwarded to it from a remote Sigma Engine). When this happens, the data is sent on the managed socket. Second, a Forwarder thread is started which polls for data received by the managed socket, and forwards any data to a remote URI (where the remote Sigma Engine is already listening for data). The pseudo-code for encoding and decoding file descriptors and the pseudo-code of the Forwarder is provided in figures~\ref{fig:encodeFds} and ~\ref{fig:fdForwarder}, respectively.
+Unlike a binder object where requests are unidirectional (from SigmaProxy to remotely managed IBinder), the socket is bidirectional. When a SigmaProxy handles a transaction with a unix domain socket in the Parcel, it is managed in two ways. First, the server-like part of Sigma Engine listens on the network channel for received data (which is forwarded to it from a remote Sigma Engine). When this happens, the data is sent on the managed socket. Second, a Forwarder thread is started which polls for data from the managed socket, and forwards any data to a remote URI (where a remote Sigma Engine is already listening for data). The pseudo-code for encoding and decoding file descriptors and the pseudo-code of the Forwarder is provided in figures~\ref{fig:encodeFds} and ~\ref{fig:fdForwarder}, respectively.
 
 \begin{figure}[h]
 \centering
@@ -390,7 +390,7 @@ Unlike a binder object where requests are unidirectional (from SigmaProxy to rem
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{drawings/forwardFds.pdf}
-\caption{Pseudo-code for a file descriptor event forwarding mechanism. Polls and forwards messages received on one end towards the URI. Then messages are forwarded to the local file descriptor on the other end.}
+\caption{Pseudo-code for a file descriptor event forwarding mechanism. Polls and forwards messages received on one end towards the URI. Then messages are forwarded to the local file descriptor on the other end. Forwarding is shown only in one direction. We also set up a forwarding mechanism going the opposite direction as well for each file descriptor.}
 \label{fig:fdForwarder}
 \end{figure}
 
@@ -518,8 +518,7 @@ class RandomServer extends IRandomServer.Stub() {
 As a second test, consider a binder service that accepts binder object arguments. In particular, using this feature it is possible to specify a callback object that invokes another binder transaction back to the caller device. Taking it one step further, recursion can occur back-and-forth as a series of binder calls between the two devices. The following binder service called PingPongService implements such a test. We can invoke a recursive case by a call like: remote.ping(local, 10), where both remote and local are instances of IPingPongServer, each on a different device. This causes a cascade of recursive calls, each counting down the number argument.
 
 \begin{snippet}
-class PingPongService extends
-    IPingPongService.Stub() {
+class PingPongService extends IPingPongService.Stub() {
   void ping(IPingPongService other, int count) {
     if (count > 0) other.pong(this, count - 1);
   }
@@ -796,16 +795,28 @@ The binder\_io struct holds the data for binder transactions as byte arrays, and
 
 The Java and C++ binder transactions operate on Parcel objects which encapsulate a binder\_io data structure.
 
+Note that the binder\_io structure is stateful. The beginning of the data and offsets array is given by the data0 and offs0 fields, respectively. The ``cursor'' into these arrays is advanced as primitive types or objects are read out, advancing the data and offs pointers.
+
 \begin{snippet}
-struct binder_io {
-  char *data;            /* start of data buffer */
-  uint32_t *offs;        /* array of offsets */
-  uint32_t data_avail;   /* bytes available in data buffer */
-  uint32_t offs_avail;   /* entries available in offsets array */
+struct binder_io
+{
+    char *data;            /* pointer to read/write from */
+    uint32_t *offs;        /* array of offsets */
+    uint32_t data_avail;   /* bytes available in data buffer */
+    uint32_t offs_avail;   /* entries available in offsets array */
+
+    char *data0;           /* start of data buffer */
+    uint32_t *offs0;       /* start of offsets buffer */
+    uint32_t flags;
+    uint32_t unused;
 };
 \end{snippet}
 
-This struct holds either a local pointer to a binder service or a kernel-module provided handle. This same struct is used for storing file descriptors as well.
+Below is the flattened representation of a Binder object for transfer
+between processes.  The 'offsets' supplied as part of a binder transaction
+contains offsets into the data where these structures occur.  The Binder
+driver takes care of re-writing the structure type and data as it moves
+between processes.
 
 \begin{snippet}
 struct flat_binder_object {
