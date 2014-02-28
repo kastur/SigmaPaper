@@ -1,34 +1,28 @@
 \documentclass[prodmode]{acmlarge}
 
-\raggedbottom
-
-\usepackage[numbers, square,sort&compress]{natbib}
-\bibliographystyle{abbrvnat}
-\renewcommand{\bibnumfmt}[1]{#1}
-%\bibpunct{}{}{}{n}{}{}
-
-% Metadata Information
-% Not used, but required by template.
+% Metadata Information. Not used, but required by template.
 \acmVolume{2}
 \acmNumber{3}
 \acmArticle{2}
 \articleSeq{2}
 \acmYear{2010}
 \acmMonth{5}
-\usepackage{color}
-%\usepackage{listings}
 
-\usepackage{url}
-\usepackage{fancyvrb}
-\usepackage{listings}
 \usepackage{caption}
-
-
+\usepackage{color}
+\usepackage{fancyvrb}
 \usepackage[T1]{fontenc}
 \usepackage{inconsolata}
+\usepackage{listings}
+\usepackage[numbers, square,sort&compress]{natbib}
+\usepackage{url}
+
+\raggedbottom
+
+\bibliographystyle{abbrvnat}
+\renewcommand{\bibnumfmt}[1]{#1}
 
 \definecolor{offwhite}{gray}{0.96}
-
 
 \makeatletter
 %% define a caption format; if the caption
@@ -49,7 +43,8 @@
   xleftmargin=2em,
   caption=\relax,
   backgroundcolor=\color{offwhite},
-  mathescape}
+  mathescape
+}
 
 \lstnewenvironment{snippet}[1][]{
     \renewcommand*{\lstlistingname}{Snippet}
@@ -58,10 +53,9 @@
 }{\endminipage}
 
 \captionsetup[lstlisting]{format=alsoempty,font=footnotesize}
+
 %\captionsetup[figure]{format=figalsoempty}
 
-%\renewcommand{\artnum}{}
-%\renewcommand{\firstfoot}{}
 
 % Title portion
 \title{Sigma: Android Binder Services over Network}
@@ -107,10 +101,10 @@ However, Snapchat follows a client-server model today. This much is known, becau
 \subsubsection{Internet of Things}
 Distributed communication is a valuable model in the Internet of Things (IoT). It is likely that Android will be a major player in the IoT. Already consumer products like the \$30 Chromecast--a bare-bones Android device that plugs into the HDMI port of TVs--is capable of receiving video and display streams from other Android devices over LAN~\cite{chromecast}. Chromecast communicates with other Android devices using webrtc, an emerging W3C P2P standard~\cite{ChromecastWebrtc}. Future internet-enabled home appliances will probably use Android in some form~\cite{AndroidEverywhere}. And the idea of a ``smart home'' is taking off. Google, being the main driver of Android today, recently acquired Nest~\cite{GoogleNest}--a company that formerly developed smart home thermostats.
 
-The IoT is filled with problems of communication between devices. For example, in the smart home an Android-enabled thermostat might poll for sensor readings like temperature and humidity from a mobile Android device in the home. We see already a crop of frameworks--like the Eclipse M2M stack for distributed communication between embedded devices~\cite{eclipse_m2m} that primarily uses the the publish-subscribe pattern~\cite{PublishSubscribe}. Although publish-subscribe is a simple, easy-to-understand model, the Android service-oriented architecture is more than that (as we will see in later sections). Therefore it is interesting to experiment with the Android service-oriented architecture as a model for distributed communication, especially when concerning ourselves with communication exclusively between Android-enabled devices in the IoT.
+The IoT is filled with problems of communication between devices. For example, in the smart home an Android-enabled thermostat might poll for sensor readings like temperature and humidity from a mobile Android device in the home. We see already a crop of frameworks--like the Eclipse M2M stack for distributed communication between embedded devices~\cite{eclipse_m2m} that primarily uses the publish-subscribe pattern~\cite{PublishSubscribe}. Although publish-subscribe is a simple, easy-to-understand model, the Android service-oriented architecture is more than that (as we will see in later sections). Therefore it is interesting to experiment with the Android service-oriented architecture as a model for distributed communication, especially when concerning ourselves with communication exclusively between Android-enabled devices in the IoT.
 
 \subsection{Related work}
-There are standard implementations of P2P technologies and networking libraries. Naturally, these implementations exist outside of the Android Runtime. Sigma aims to use these standard technologies, but to create a distributed communication model that is a better fit within Android. There is prior work in Academia very similar to this paper. To give just one example: the Interdroid~\cite{Interdroid} project also aims to create a platform for distributed applications on Android. However Interdroid defines a separate API for distributed communication that apps must conform to, much like the Eclipse M2M specifies its own publish-subscribe API. Related more to the creation of privacy-aware apps is $\pi$Box~\cite{piBox}: a platform for privacy-preserving apps, achieving a sandbox that spans across devices, providing secure channels. Since $\pi$Box targets Android, it fits the Android model better than standard third-party libraries. However, distributed communication requires the reimplementation of apps using the concept of the secure channels. In comparison, Sigma is an attempt at generalizing the existing Android service-oriented architecture. In creating distributed apps, the existing programmer support provided in the Android SDK for creating local service-oriented apps can be leveraged. No previous project, to the best of our knowledge, enables distributed communication on Android using Android's very own service-oriented runtime.
+There are standard implementations of P2P technologies and networking libraries. Naturally, these implementations exist outside of the Android Runtime. Sigma aims to use these standard technologies, but to create a distributed communication model that is a better fit within Android. There is prior work in Academia very similar to this paper. To give just one example: the Interdroid~\cite{Interdroid,PalmerThesis} project also aims to create a platform for distributed applications on Android. However Interdroid defines a separate API for distributed communication that apps must conform to, much like the Eclipse M2M specifies its own publish-subscribe API. Related more to the creation of privacy-aware apps is $\pi$Box~\cite{piBox}: a platform for privacy-preserving apps, achieving a sandbox that spans across devices, providing secure channels. Since $\pi$Box targets Android, it fits the Android model better than standard third-party libraries. However, distributed communication requires the reimplementation of apps using the concept of the secure channels. In comparison, Sigma is an attempt at generalizing the existing Android service-oriented architecture. In creating distributed apps, the existing programmer support provided in the Android SDK for creating local service-oriented apps can be leveraged. No previous project, to the best of our knowledge, enables distributed communication on Android using Android's very own service-oriented runtime.
 
 The inspiration for this paper is in part from the well-known X windows system. X is a server that manages display and input-device operations. Applications connect to X and follow a simple protocol (X11) to create and coordinate GUI interactions. It is a fully message-based protocol, and is specifically designed to allow for messages to be tunneled through network connections~\cite{X11}. This allows applications running on one machine to be displayed and controlled via a remote X server. Thus, anyone with an interactive terminal (e.g. ssh) to a machine can interact with GUI applications via X11-forwarding. Sigma aims to accomplish something similar for Android Services.
 
@@ -127,7 +121,7 @@ The Binder framework is Android's primary IPC mechanism, and it is used widely w
 \subsection{Kernel Module}
 The binder kernel module (BKM) provides the facility to register a default binder service known as the context manager. It is then the job of the context manager to manage binder objects in the operating system. This context manager can be accessed by arbitrary processes via a call to the BKM. In Android the context manager presents an IServiceManager interface which provides actions to manage a directory of system services, and where system services publish themselves to the directory via binder RPC.
 
-Using the lowest-level C API for communicating with the BKM, here are the sequence of commands to create and publish a binder service. The binder service is implemented via a handler function, and incoming requests invoke it. The body of the handler function is not shown here. The arguments to binder\_call are described in the Appendix~\ref{app:binder_call}. This binder\_call is targeted at the ServiceManager, and invokes its handler function running on the root system process.
+Using the lowest-level C API for communicating with the BKM, here are the sequence of commands to create and publish a binder service. The binder service is implemented via a handler function (whose body is not shown), and incoming requests invoke it. Arguments to binder\_call are described in Appendix~\ref{app:binder_call}. This particular binder\_call is targeted at the ServiceManager, and invokes its handler function running on the root system process.
 
 \begin{snippet}[label=snip:binder_call,caption=binder\_call to publish a service with ServiceManager]
 binder_state* binder_service = binder_open();
@@ -157,13 +151,13 @@ Invoking a binder RPC targeted at this new handle will invoke the associated ser
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{drawings/binder_call.pdf}
+\includegraphics[width=0.8\textwidth]{drawings/binder_call.pdf}
 \caption{binder\_call synchronous IPC execution among binder service and kernel module}
 \label{fig:binder_call}
 \end{figure}
 
 \subsubsection{binder\_io with objects and file descriptors}
-An essential feature of binder is the ability to write binder objects and file descriptors as arguments into (or in replies from) RPCs. A handle to an binder object is a descriptor that is tracked by the kernel module, and the binder driver takes care of rewriting the structure type and data as it moves between processes~\cite{BinderSourceComment}. A process can obtain a handle to a remote binder service, and can invoke a RPC on the object. As evident from the above communication with ServiceManager, this feature is used to publish and then retrieve binder services among processes. Both primitive types and objects are written into the binder\_io structure, encoded as a byte-array.
+An essential feature of binder is the ability to write binder objects and file descriptors as arguments into (or in replies from) RPCs. A handle to a binder object is a descriptor that is tracked by the kernel module, and the binder driver takes care of rewriting the structure type and data as it moves between processes~\cite{BinderSourceComment}. A process can obtain a handle to a remote binder service, and can invoke a RPC on the object. As evident from the above communication with ServiceManager, this feature is used to publish and then retrieve binder services among processes. Both primitive types and objects are written into the binder\_io structure, encoded as a byte-array.
 
 This level of understanding of BKM is sufficient in detail for the scope of this paper. Documentation on internals of binder is sparse. The following references~\cite{BinderLinuxFoundation,BinderMastersThesis} provide a useful resource, but the real reference to Binder is in code--its implementation in Android.
 
@@ -255,7 +249,7 @@ bindService(...) cannot be used for everything. For instance, in the course of b
 
 \section{System Services: Provided Over the Network?}
 \label{sec:SystemServices}
-Before going into the design and implementation of Sigma, it is useful to understand the kinds of system services offered via binder. This will serve as guide to figure which features of binder are commonly used, and will set a baseline for the features Sigma should support. In particular, we want to answer: which services are useful for remote devices to access? And which cannot be accessed (or don't make any sense to provide access to)?  To start, it is reasonable to expose ServiceManager since it is an entry-point into all other system services. There are dozens of system services, but the patterns used repeat. So, four interesting services are covered here.
+Before going into the design and implementation of Sigma, it is useful to understand the kinds of system services offered via binder. This will serve as guide to figure which features of binder are commonly used, and will set a baseline for features Sigma should support. In particular, we want to answer: which services are useful for remote devices to access? And which cannot be accessed (or don't make any sense to provide access to)?  To start, it is reasonable to expose ServiceManager since it is an entry-point into all other system services. There are dozens of system services, but the patterns used repeat. So, four interesting services are covered here.
 
 \subsection{LocationManager: location updates via binder callback and PendingIntent}
 It is most natural to expose system services that are standalone and isolated in a sense. A good example is the LocationManager which ``allows applications to obtain periodic updates of the device's geographical location, or to fire an application-specific Intent when the device enters the proximity of a given geographical location.~\cite{LocationManagerDocs}'' The location manager operates as a standalone source of location updates. Here are 2 methods of the LocationManager that we look into further.
@@ -283,9 +277,9 @@ oneway interface ILocationListener {
 }
 \end{snippet}
 
-The main requestLocationUpdates() method requires the client to provide either a ILocationListener binder callback or PendingIntent callback. If the former callback is provided, LocationManager holds a BinderProxy initialized with the remote handle to the client-provided ILocationListener. The .onLocationChanged() RPC is invoked periodically with location updates, provided that the client application keeps the callback object alive (i.e. a keep around a strong reference) and that the client process remain running.
+The main requestLocationUpdates() method requires the client to provide either an ILocationListener binder callback or PendingIntent callback. If the former callback is provided, LocationManager holds a BinderProxy initialized with the remote handle to the client-provided ILocationListener. The .onLocationChanged() RPC is invoked periodically with location updates, provided that the client application keeps the callback object alive (i.e. a keep around a strong reference) and that the client process remain running.
 
-The latter PendingIntent callback is also implemented via binder. However the callback object is managed by the Android Runtime. The client first obtains a PendingIntent via RPC to the central ActivityManager. A PendingIntent is constructed with the address of a recipient component to which messages are delivered. Used as a callback, the PendingIntent is usually constructed with the address of a component in the client's namespace (or the client component itself). With the PendingIntent provided as argument to requestLocationUpdates(), the LocationManager later can invoke PendingIntent.send() with location updates as contained data. This RPC goes to the Android Runtime (the owner of the PendingIntent), which then via another RPC routes the message to the recipient component. Though the PendingIntent mechanism is inherently more complex, the advantage is that the Android Runtime takes care to brings up the recipient component in case it is not already up. This way an app can register a PendingIntent callback and not have the burden of being active to receive callbacks.
+The latter PendingIntent callback is also implemented via binder. However the callback object is managed by the Android Runtime. The client first obtains a PendingIntent via RPC to the central ActivityManager. A PendingIntent is constructed with the address of a recipient component to which messages are delivered. Used as a callback, the PendingIntent is usually constructed with the address of a component in the client's namespace (or the client component itself). With the PendingIntent provided as argument to requestLocationUpdates(), the LocationManager later can invoke PendingIntent.send() with location updates as contained data. This RPC goes to the Android Runtime (the owner of the PendingIntent), which then via another RPC routes the message to the recipient component. Though the PendingIntent mechanism is inherently more complex, the advantage is that the Android Runtime takes care to bring up the recipient component in case it is not already up. This way an app can register a PendingIntent callback and not have the burden of being active to receive callbacks.
 
 \begin{snippet}
 interface IIntentSender {
@@ -313,7 +307,7 @@ PendingIntent.send() is implemented in non-blocking fashion. Internally a Pendin
 Both direct binder object callbacks and PendingIntent callbacks should be supported by Sigma. PendingIntent callbacks are of particular interest since they can be used in the design of ``push'' services~\cite{PushTechnology}. With Sigma, a client can register a PendingIntent with a remote service (provided by a remote device). The client app can receive callbacks from the remote device without the need for the client app to remain active. Of course, the Sigma network stack in charge of receiving binder messages (resident on both the local and remote devices), and the service on the remote device have to be remain active for this to work.
 
 \subsection{SensorManager: sensor events via Unix domain sockets}
-The SensorManager is another good candidate to allow access from remote devices. It is a standalone source of sensor data streams. Recently, sensors services have evolved to to provide the user's activity state--e.g. categories like walking or driving~\cite{AndroidActivityRecognition}. We imagine future system services will include an variety of contextual inferences derived from sensor data.
+The SensorManager is another good candidate to allow access from remote devices. It is a standalone source of sensor data streams. Recently, sensors services have evolved to provide the user's activity state--e.g. categories like walking or driving~\cite{AndroidActivityRecognition}. We imagine future system services will include a variety of contextual inferences derived from sensor data.
 
 Also interesting is SensorEvents are sent via a BitTube--an OO abstraction on top of Unix domain sockets. This mechanism is different from the binder-callback mechanism used by LocationManager. Here, SensorManager uses binder to setup a unix domain socket pair between two processes, and subsequently pushes sensor events over the socket. If we are to expose SensorManager over the network, we need to the ability to send file descriptors (and importantly: to support IO operations on those file descriptors) over the network as well.
 
@@ -360,7 +354,7 @@ The design of Sigma in a nutshell is essentially to follow the Proxy Pattern of 
 Consider a network consisting of two Android devices, and that there is a pre-established data channel between them. Each device runs a Sigma Engine instance which has server-like and client-like functions. Its function viewed as a server is to associate a URI to a local IBinder object given to it--usually a BinderProxy object referring to an active Binder object running on another process on the same device. Subsequently Sigma Engine should listen on the network channel for requests made to that URI, and perform the requested operation directly on the corresponding managed IBinder object. Its function as a client is to communicate over the network channel with a remote Sigma Engine to retrieve the URI of a remotely managed IBinder object. The local Sigma Engine then creates a special Binder object--a SigmaProxy which is initialized with the URI of the remotely managed IBinder. A handle to SigmaProxy can be passed to other processes on the local device, as a BinderProxy object. Local clients can invoke .transact() on the SigmaProxy via binder. This operation runs on the Sigma Engine (as it created the SigmaProxy) and it functions to forward the binder transaction (its arguments) to the remote Sigma Engine--invoking its server-like functions--to handle the binder transaction, and eventually return a reply.
 
 \subsection{Dealing with Binder Objects in a Parcel}
-The difficulty arises when dealing with the contents of the Parcel arguments in a call to .transact(). Since a Parcel can contain handles to local binder objects or file descriptors, we cannot simply marshall the Parcel's byte-array and expect the the unmarshalled Parcel to be valid on the remote side.
+The difficulty arises when dealing with the contents of the Parcel arguments in a call to .transact(). Since a Parcel can contain handles to local binder objects or file descriptors, we cannot simply marshall the Parcel's byte-array and expect the unmarshalled Parcel to be valid on the remote side.
 
 When .transact() is invoked on a SigmaProxy, the ``msg'' Parcel object needs to be communicated over the network channel. However, the Parcel may contain local descriptors such as handles to binder objects. With some modifications to the Android Runtime (see Appendix~\ref{sec:AndroidRuntimeModifications}), we are able to locate the offsets into the Parcel's byte-array where these handles are written, and are able to read in each handle as a BinderProxy object. We now utilize the server-like functions of the Sigma Engine by asking it to manage each BinderProxy object--assigning it an URI. Thus, each Parcel containing handles to binder objects are rewritten into messages containing the corresponding URIs. Each URI is managed by the Sigma Engine. See the encode side of figure~\ref{fig:encodeParcel}.
 
@@ -403,7 +397,7 @@ Unlike a binder object where requests are unidirectional (from SigmaProxy to rem
 \subsection{Design of the Sigma Message-based Protocol}
 Sigma Engine needs a networking stack to work. The first decision is about where to implement the networking stack. It makes sense to implement at the Java level--using the features of the Java Android Runtime and convenience of the Android SDK to full benefit. Particularly since we have established that Sigma itself can be implemented purely in Java with some prerequisite modifications to the Android Runtime (see Appendix~\ref{sec:AndroidRuntimeModifications}).
 
-The second decision is to chose a structured format for communication over the network data channel. The choice is arbitrary, but we wanted something relatively fast and with the ability to define data types or schemas for messages. Our choice is a lightweight implementation of Google's protobuf format for encoding structured data called Wire~\cite{Wire,IntroWire}. It is a open source library created specifically for Android by the mobile app company Square.
+The second decision is to chose a structured format for communication over the network data channel. The choice is arbitrary, but we wanted something relatively fast and with the ability to define data types or schemas for messages. Our choice is a lightweight implementation of Google's protobuf format for encoding structured data called Wire~\cite{Wire,IntroWire}. It is an open source library created specifically for Android by the mobile app company Square.
 
 A basic building block is representing a URI. It is a Wire message (see Figure~\ref{fig:WireURI}) that contains all the necessary network information about the source or target Sigma Engine. When a URI contains only that much information, it is known as a BASE URI. An HTTP-based Sigma Engine has a URI with the host and port fields set, for instance. A URI can also refer to a remotely managed IBinder object. A BINDER URI is a BASE URI (which refers to a Sigma Engine) with additional fields set: the assigned ID of the referent binder and its interface descriptor. If the binder object was originally from a Parcel, then its offset into the Parcel's byte-array is also set. Similarly, a UNIX\_DOMAIN\_SOCKET URI is a BASE URI along with the assigned ID of the managed socket file descriptor. The URI.ObjectType field distinguishes between these types of URIs.
 
@@ -451,7 +445,7 @@ Each device brings up a HTTP server listening on a pre-determined port. One devi
 Each device logs-in with a distinct alias to a mutually accessible XMPP server. XMPP is a popular protocol for real-time collaboration--messaging and chat. Transactions initiate a chat session with another active alias. Each chat session, identified by a unique thread ID, is used for one transaction and then disposed. Subsequent (or parallel) transactions occur on distinct sessions.
 
 \subsubsection{Encoding Wire Messages, Examples}
-The Sigma Engine creates Wire messages for each transaction. These can be printed to human-readable format. For instance, here is a BIDNER URI for a ICommentReceiver (IBinder) object managed by a XMPP-based SigmaEngine that is using the alias ``rr@quark.''
+The Sigma Engine creates Wire messages for each transaction. These can be printed to human-readable format. For instance, here is a BIDNER URI for an ICommentReceiver (IBinder) object managed by a XMPP-based SigmaEngine that is using the alias ``rr@quark.''
 
 \begin{snippet}
 URI{_interface=com.example.BinderSigma.samples.chat.ICommentReceiver,
@@ -521,7 +515,7 @@ class RandomServer extends IRandomServer.Stub() {
   int getRandom() { return (new Random()).nextInt(); }}
 \end{snippet}
 
-As a second test, consider a binder service that accepts binder object arguments. In particular, using this feature it is possible to specify a callback object that invokes a another binder transaction back to the caller device. Taking it one step further, recursion can occur back-and-forth as a series of binder calls between the two devices. The following binder service called PingPongService implements such a test. We can invoke a recursive case by a call like: remote.ping(local, 10), where both remote and local are instances of IPingPongServer, each on a different device. This causes a cascade of recursive calls, each counting down the number argument.
+As a second test, consider a binder service that accepts binder object arguments. In particular, using this feature it is possible to specify a callback object that invokes another binder transaction back to the caller device. Taking it one step further, recursion can occur back-and-forth as a series of binder calls between the two devices. The following binder service called PingPongService implements such a test. We can invoke a recursive case by a call like: remote.ping(local, 10), where both remote and local are instances of IPingPongServer, each on a different device. This causes a cascade of recursive calls, each counting down the number argument.
 
 \begin{snippet}
 class PingPongService extends
@@ -551,7 +545,7 @@ As is apparent, it is 2x-3x as expensive to perform a binder call over a proxy t
 
 \subsection{Testing Performance with System Services}
 
-The following assumes knowledge of the respective system services, a overview of which was previously provided in section~\ref{sec:SystemServices}.
+The following assumes knowledge of the respective system services, an overview of which was previously provided in section~\ref{sec:SystemServices}.
 
 \subsubsection{Remote Location Updates}
 \label{sec:location_sharing}
@@ -600,7 +594,7 @@ Because there is also jitter in received sensor events, it is necessary to depen
 These types of conditions are not typically expected in local Binder services, and it is a potential drawback to using Binder services for distributed communication as there is no inherent mechanism to detect nor manage such conditions. In any case, streaming frequent events of small packet sizes via Sigma may require a more streamlined implementation of the underlying data channel.
 
 \section{Picture Sharing: A Distributed Application Purely in Android Binder}
-
+\label{sec:ExampleApplication}
 \begin{snippet}
 interface IPictureChatServer {
   // Returns a fileDescriptor to which caller writes picture data.
@@ -628,7 +622,7 @@ The PictureChatServer inherently (via native binder) allows different processes 
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{drawings/PictureChatExample.pdf}
+\includegraphics[width=0.8\textwidth]{drawings/PictureChatExample.pdf}
 \caption{Screenshots from simple picture sharing service}
 \label{fig:ExampleApplication}
 \end{figure}
@@ -659,14 +653,14 @@ This limitation does not apply to RPC interfaces generated by third-party develo
 \subsubsection{Parcels not portable between architectures}
 Parcels were never implemented with the idea of portability. As we know, Parcels can contain binder objects and file descriptors which are obviously non-portable. Of course, the major implementation work in Sigma involved the managing of such objects, and provide a proxy for operating on them.
 
-There is yet another aspect of Parcels that is non-portable, and this because primitive elements are represented in a long byte array, copied byte-for-byte. This operations happens preserves endianness, and this fact is troublesome since a remote device of the the opposite endianness would incorrectly process primitive data elements when it comes time to read each element out of the parcel. Although this is a seemingly major obstacle to the use of binder as a distributed communication mechanism, in practice we see that most all Android devices are ARM-based, and ARM chips are bi-endian (there is a little switch to toggle to specify the endianness). Android, by specification, is little-endian for all such ARM-based devices~\cite{ARMLittleEndian}.
+There is yet another aspect of Parcels that is non-portable, and this because primitive elements are represented in a long byte array, copied byte-for-byte. This operation happens preserves endianness, and this fact is troublesome since a remote device of the opposite endianness would incorrectly process primitive data elements when it comes time to read each element out of the parcel. Although this is a seemingly major obstacle to the use of binder as a distributed communication mechanism, in practice we see that most all Android devices are ARM-based, and ARM chips are bi-endian (there is a little switch to toggle to specify the endianness). Android, by specification, is little-endian for all such ARM-based devices~\cite{ARMLittleEndian}.
 
 There is a way to make parcels portable, but we leave that to future work. Parcels store offsets to objects contained within, but not offsets to other types of primitive data. We would first have to implement that feature (which will come with additional overhead in space requirements). To send over parcels, we would need to interpret each primitive element written into data array (is it an integer or a string of some length or something else?), marshalling each element in the Parcel separately using a canonical choice for endianness. Then on the other side, unmarshalling back into the data array would need to follow an analogous reverse procedure, decoding each element into the endianness appropriate for that system.
 
 \subsubsection{XMPP and HTTP are not entirely satisfactory as data channels}
 HTTP is only suitable over the local network since a HTTP server running on a device behind NAT is not accessible by others without additional configuration. XMPP uses a central chat server (accessible to all other devices) as a middleman. Having such a middleman incurs a performance penalty, and possible privacy concerns.
 
-There are new technologies such as WebRTC~\cite{GoogleTalkLibrary} that seek to establish fully peer-to-peer connections. A signaling channel such as XMPP is used first to exchange descriptors between devices, and then a central server (typically hosted publicly by a third-party) is involved in establishing a direct peer-to-peer connection. All subsequent communication is done via this connection. This same technology is used by Google Talk, and is soon going to become a W3C standard. Implementing and evaluating binder over network using webrtc data channels is left for future work.
+There are new technologies such as WebRTC~\cite{GoogleTalkLibrary} that seek to establish fully peer-to-peer connections. A signaling-channel such as XMPP is used first to exchange descriptors between devices, and then a central server (typically hosted publicly by a third-party) is involved in establishing a direct peer-to-peer connection. All subsequent communication is done via this connection. This same technology is used by Google Talk, and is soon going to become a W3C standard. Implementing and evaluating binder over network using webrtc data channels is left for future work.
 
 \subsubsection{What happens when a remote binder dies? Or if the network channel disconnects?}
 Binder supports via ``linkToDeath()'' the registering of callback that is invoked when the process hosting a remote binder unexpectedly dies. This is fortunate because we can use the same mechanism to notify of clients of a Sigma-managed Proxy Binder when networks disconnects. A ``linkToDeath'' is not mandatory for clients to use. Another feature of Android Binder is that a DeadObjectException is thrown when a RPC is invoked against a dead remote binder object. However, these two feature are not currently implemented in the prototype.
@@ -737,10 +731,10 @@ The main Sigma Engine that can be compiled into an Android package (or APK) can 
 
 \noindent~The XMPP library is patched slightly, and is online: \verb|https://github.com/kastur/ASmack|
 
-The code has been tested on a modified Android Runtime with a Android base version 4.2.2\_r1 on the Android Emulator and Nexus 4 device.
+The code has been tested on a modified Android Runtime with an Android base version 4.2.2\_r1 on the Android Emulator and Nexus 4 device.
 
 \subsubsection{Modifications to the Android Runtime}
-Of course, the Sigma Android package will not function on a regular Android device. We have modified the Android 4.2.2\_r1 version source tree to support some features. The modified runtime can be compiled and flashed on a real device or run on the emulator by following the directions at \verb|https://source.android.com/|. The following patches have to be applied to 2 modified sub-projects. The modified source tree for 2 sub-projects is available online:
+Of course, the Sigma Android package will not function on a regular Android device. We have modified the Android 4.2.2\_r1 version source tree to support some features. The modified runtime can be compiled and flashed on a real device or run on the emulator by following the directions at \verb|https://source.android.com/|. The following patches have to be applied to 2 modified sub-projects, the source trees to which is available online:
 
 \begin{Verbatim}
 https://github.com/6b72/platform_frameworks_base/tree/sigma
@@ -782,8 +776,7 @@ target -  is a reference to a remote binder service already published. Usually
           ServiceManager itself, which is always at the address (void*)0.
 
 code -    is a non-specific value passed to the handler of the remote binder object.
-          In this case, we pass an integer representing the action to be performed,
-          where SVC_MGR_ADD_SERVICE is an predefined int.
+          In this case, we pass an integer representing the action to be performed, where SVC_MGR_ADD_SERVICE is a predefined int.
 \end{snippet}
 
 All operations of a binder\_service are implemented inside of a handler function; the function signature resembles that of binder\_call:
@@ -852,12 +845,12 @@ The following set of figures show in detail the Wire messages exchanged between 
 
 \begin{figure}[h!]
 \centering
-\includegraphics[width=\textwidth]{drawings/WireExchange1.pdf}
+\includegraphics[width=0.8\textwidth]{drawings/WireExchange1.pdf}
 \end{figure}
 
 \begin{figure}[h!]
 \centering
-\includegraphics[width=\textwidth]{drawings/WireExchange2.pdf}
+\includegraphics[width=0.8\textwidth]{drawings/WireExchange2.pdf}
 \end{figure}
 
 Here, since we are operating under the LOCAL protocol, all transactions proxy binder objects are transit through the local Sigma Engine and then to the remote Sigma Engine (which also runs on the same device as a different process), and then from there to the native binder service. Naturally this the transit from local to remote Sigma Engine will take over the network (through HTTP or XMPP) for those implementations.
@@ -868,10 +861,14 @@ Here, since we are operating under the LOCAL protocol, all transactions proxy bi
 An exchange of Wire messages detailing a recursive binder that take place between two Sigma Engine instances from the example of the PingPong service.
 \begin{figure}[h!]
 \centering
-\includegraphics[width=\textwidth]{drawings/WireExchangeRecursive.pdf}
+\includegraphics[width=0.8\textwidth]{drawings/WireExchangeRecursive.pdf}
 \end{figure}
 \pagebreak[4]
 
+\begingroup
+\raggedright
+\footnotesize
 \bibliography{sigma}
+\endgroup
 
 \end{document}
